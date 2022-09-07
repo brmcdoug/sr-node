@@ -1,0 +1,4 @@
+FROM scratch
+
+COPY ./bin/sr-node /sr-node
+ENTRYPOINT ["/sr-node"]
