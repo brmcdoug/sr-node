@@ -3,6 +3,7 @@ package arangodb
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	driver "github.com/arangodb/go-driver"
 	"github.com/golang/glog"
@@ -43,23 +44,21 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lssrv6sid, lsnode, 
 	arango.DB = arango
 	arango.ArangoConn = arangoConn
 
-	// Check if vertex collection exists, if not fail as Jalapeno topology is not running
+	// Check if vertex collections exist if not, fail with error
 	arango.lsprefix, err = arango.db.Collection(context.TODO(), lsprefix)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ls_prefix collection not found")
 	}
-	// Check if vertex collection exists, if not fail as Jalapeno topology is not running
 	arango.lssrv6sid, err = arango.db.Collection(context.TODO(), lssrv6sid)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ls_prefix collection not found")
 	}
-	// Check if graph exists, if not fail as Jalapeno ipv4_topology is not running
 	arango.lsnode, err = arango.db.Collection(context.TODO(), lsnode)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ls_prefix collection not found")
 	}
 
-	// check for sr_node collection
+	// check for sr_node collection, if it doesn't exist, create it
 	found, err := arango.db.CollectionExists(context.TODO(), srnode)
 	if err != nil {
 		return nil, err
@@ -69,21 +68,24 @@ func NewDBSrvClient(arangoSrv, user, pass, dbname, lsprefix, lssrv6sid, lsnode, 
 		if err != nil {
 			return nil, err
 		}
+		glog.Infof("sr_node collection found, proceed to processing data")
+
 		if err := c.Remove(context.TODO()); err != nil {
 			return nil, err
 		}
 	}
 	// create sr node collection
 	var srnode_options = &driver.CreateCollectionOptions{ /* ... */ }
-	glog.V(5).Infof("sr_node not found, creating")
+	glog.Infof("sr_node collection not found, creating collection")
 	arango.srnode, err = arango.db.CreateCollection(context.TODO(), "sr_node", srnode_options)
 	if err != nil {
 		return nil, err
 	}
+
 	// check if collection exists, if not fail as processor has failed to create collection
 	arango.srnode, err = arango.db.Collection(context.TODO(), srnode)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create sr_node collection")
 	}
 
 	return arango, nil
@@ -143,6 +145,8 @@ func (a *arangoDB) monitor() {
 
 func (a *arangoDB) loadCollection() error {
 	ctx := context.TODO()
+	// copy ls_node data into new sr_node collection
+	glog.Infof("copy ls_node into sr_node")
 	lsn_query := "for l in " + a.lsnode.Name() + " insert l in " + a.srnode.Name() + ""
 	cursor, err := a.db.Query(ctx, lsn_query, nil)
 	if err != nil {
@@ -150,6 +154,7 @@ func (a *arangoDB) loadCollection() error {
 	}
 	defer cursor.Close()
 
+	// query ls_prefix collection and pass data to prefixSID processor
 	sr_query := "for p in  " + a.lsprefix.Name() + " return p "
 	cursor, err = a.db.Query(ctx, sr_query, nil)
 	if err != nil {
@@ -158,18 +163,18 @@ func (a *arangoDB) loadCollection() error {
 	defer cursor.Close()
 	for {
 		var p message.LSPrefix
-		//var p LSPfx
 		meta, err := cursor.ReadDocument(ctx, &p)
 		if driver.IsNoMoreDocuments(err) {
 			break
 		} else if err != nil {
 			return err
 		}
-		if err := a.processPrefixSID(ctx, meta.Key, meta.ID.String(), p); err != nil {
+		if err := a.processPrefixSID(ctx, meta.Key, meta.ID.String(), &p); err != nil {
 			glog.Errorf("Failed to process ls_prefix_sid %s with error: %+v", p.ID, err)
 		}
 	}
 
+	// query ls_srv6_sid collection and pass data to SRv6 SID processor
 	srv6_query := "for s in  " + a.lssrv6sid.Name() + " return s "
 	cursor, err = a.db.Query(ctx, srv6_query, nil)
 	if err != nil {

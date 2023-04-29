@@ -35,7 +35,6 @@ type kafka struct {
 
 // NewKafkaMessenger returns an instance of a kafka consumer acting as a messenger server
 func NewKafkaMessenger(kafkaSrv string, db dbclient.DB) (Srv, error) {
-	glog.Infof("ls_srv6_sid Vertex kafka reader")
 	if err := tools.HostAddrValidator(kafkaSrv); err != nil {
 		return nil, err
 	}

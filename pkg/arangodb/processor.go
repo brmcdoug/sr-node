@@ -11,6 +11,7 @@ import (
 )
 
 func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *message.LSSRv6SID) error {
+	glog.V(5).Infof("query to correlate srv6 sid %s", e.Key)
 	query := "for l in " + a.srnode.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\""
 	query += " return l"
@@ -26,9 +27,9 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 			return err
 		}
 	}
-	glog.V(6).Infof("sr_node %s + srv6sid %s", ns.Key, e.SRv6SID)
+	glog.Infof("sr_node %s + srv6sid %s", ns.Key, e.SRv6SID)
 
-	srv6sid := SID{
+	sid := SID{
 		SRv6SID:              e.SRv6SID,
 		SRv6EndpointBehavior: e.SRv6EndpointBehavior,
 		SRv6BGPPeerNodeSID:   e.SRv6BGPPeerNodeSID,
@@ -36,10 +37,8 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 	}
 
 	srn := SRNode{
-		SID:     []*SID{&srv6sid},
+		SID:     []*SID{&sid},
 		SRv6SID: e.SRv6SID,
-		//SID: map[string]SID{e.SRv6SID: srv6sid},
-		//SID: map[string]string{srv6sid.SRv6SID: e.SRv6SID},
 	}
 
 	if _, err := a.srnode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
@@ -51,7 +50,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 	return nil
 }
 
-func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e message.LSPrefix) error {
+func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e *message.LSPrefix) error {
 	if strings.Contains(e.Key, ":") {
 		// we're looking for v4 prefixes
 		return nil
@@ -60,7 +59,7 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 		// we're looking for SR prefix SIDs
 		return nil
 	}
-
+	glog.V(5).Infof("correlate sr_node with ls_prefix: %s ", e.Key)
 	query := "for l in  " + a.srnode.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\""
 	query += " return l"
@@ -78,7 +77,7 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e messa
 			}
 			break
 		}
-		glog.V(6).Infof("sr node: %s + prefix sid %v +  ", ln.Key, e.PrefixAttrTLVs.LSPrefixSID)
+		glog.V(5).Infof("sr node: %s + prefix sid %v +  ", ln.Key, e.PrefixAttrTLVs.LSPrefixSID)
 
 		obj := srObject{
 			PrefixAttrTLVs: e.PrefixAttrTLVs,
@@ -116,11 +115,12 @@ func (a *arangoDB) processSRNode(ctx context.Context, key string, e *message.LSN
 	}
 
 	if _, err := a.srnode.CreateDocument(ctx, &sn); err != nil {
-		glog.V(5).Infof("adding sr node: %s ", sn.Key)
+		glog.Infof("adding sr node: %s ", sn.Key)
 		if !driver.IsConflict(err) {
 			return err
 		}
 		if err := a.findPrefixSID(ctx, sn.Key, e); err != nil {
+			glog.Infof("finding prefix SID for node: %s ", sn.Key)
 			if err != nil {
 				return err
 			}
@@ -139,6 +139,7 @@ func (a *arangoDB) processSRNode(ctx context.Context, key string, e *message.LSN
 }
 
 func (a *arangoDB) findPrefixSID(ctx context.Context, key string, e *message.LSNode) error {
+	glog.Infof("finding prefix sid for node: %s ", e.Key)
 	query := "for l in " + a.lsprefix.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\"" +
 		" filter l.prefix_attr_tlvs.lsprefix_sid != null"
