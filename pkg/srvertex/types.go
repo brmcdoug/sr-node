@@ -1,4 +1,4 @@
-package arangodb
+package sr
 
 import (
 	"github.com/sbezverk/gobmp/pkg/base"
@@ -48,10 +48,9 @@ type SRNode struct {
 	PrefixAttrTLVs       *bgpls.PrefixAttrTLVs           `json:"prefix_attr_tlvs,omitempty"`
 	PrefixSID            []*sr.PrefixSIDTLV              `json:"prefix_sid_tlv,omitempty"`
 	FlexAlgoPrefixMetric []*bgpls.FlexAlgoPrefixMetric   `json:"flex_algo_prefix_metric,omitempty"`
-	SID                  []*SID                          `json:"sid,omitempty"`
+	SID                  []*SID                          `json:"sid_attrs,omitempty"`
 	SRv6SID              string                          `json:"srv6_sid,omitempty"`
-	SIDS                 SIDS                            `json:"sids,omitempty"`
-	//SIDS map[string]SID `json:"sids,omitempty"`
+	//SID map[string]SID `json:"sid,omitempty"`
 	//SID map[string]*SID `json:"sid,omitempty"`
 }
 
@@ -60,8 +59,4 @@ type SID struct {
 	SRv6EndpointBehavior *srv6.EndpointBehavior `json:"srv6_endpoint_behavior,omitempty"`
 	SRv6BGPPeerNodeSID   *srv6.BGPPeerNodeSID   `json:"srv6_bgp_peer_node_sid,omitempty"`
 	SRv6SIDStructure     *srv6.SIDStructure     `json:"srv6_sid_structure,omitempty"`
-}
-
-type SIDS struct {
-	SIDS []SID `json:"sids,omitempty"`
 }
