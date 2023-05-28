@@ -27,7 +27,6 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 			return err
 		}
 	}
-	glog.Infof("sr_node %s + srv6sid %s", ns.Key, e.SRv6SID)
 
 	sid := SID{
 		SRv6SID:              e.SRv6SID,
@@ -36,14 +35,12 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		SRv6SIDStructure:     e.SRv6SIDStructure,
 	}
 
-	sids := SIDS{
-		SIDS: []SID{sid},
-	}
+	sn.SIDs = append(sn.SIDs, sid)
 
 	srn := SRNode{
-		SID:     []*SID{&sid},
-		SRv6SID: e.SRv6SID,
-		SIDS:    sids,
+		//SID:     []*SID{&sid},
+		//SRv6SID: e.SRv6SID,
+		SIDs: sn.SIDs,
 	}
 
 	if _, err := a.srnode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
