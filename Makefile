@@ -1,5 +1,5 @@
 REGISTRY_NAME?=docker.io/iejalapeno
-IMAGE_VERSION?=tidying
+IMAGE_VERSION?=latest
 
 .PHONY: all sr-node container push clean test
 
