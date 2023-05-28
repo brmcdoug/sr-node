@@ -48,10 +48,9 @@ type SRNode struct {
 	PrefixAttrTLVs       *bgpls.PrefixAttrTLVs           `json:"prefix_attr_tlvs,omitempty"`
 	PrefixSID            []*sr.PrefixSIDTLV              `json:"prefix_sid_tlv,omitempty"`
 	FlexAlgoPrefixMetric []*bgpls.FlexAlgoPrefixMetric   `json:"flex_algo_prefix_metric,omitempty"`
-	SID                  []*SID                          `json:"sid_attrs,omitempty"`
-	SRv6SID              string                          `json:"srv6_sid,omitempty"`
-	//SID map[string]SID `json:"sid,omitempty"`
-	//SID map[string]*SID `json:"sid,omitempty"`
+	//SID                  []*SID                          `json:"sid,omitempty"`
+	//SRv6SID              string                          `json:"srv6_sid,omitempty"`
+	SIDs []SID `json:"srv6_sids,omitempty"`
 }
 
 type SID struct {

@@ -75,7 +75,7 @@ func (a *arangoDB) lsPrefixHandler(obj *notifier.EventMessage) error {
 	}
 	switch obj.Action {
 	case "add":
-		if err := a.processPrefixSID(ctx, obj.Key, obj.ID, o); err != nil {
+		if err := a.processPrefixSID(ctx, obj.Key, obj.ID, &o); err != nil {
 			return fmt.Errorf("failed to process action %s for vertex %s with error: %+v", obj.Action, obj.Key, err)
 		}
 	default:
