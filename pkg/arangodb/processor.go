@@ -10,48 +10,6 @@ import (
 	"github.com/sbezverk/gobmp/pkg/message"
 )
 
-func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *message.LSSRv6SID) error {
-	glog.V(5).Infof("query to correlate srv6 sid %s", e.Key)
-	query := "for l in " + a.srnode.Name() +
-		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\""
-	query += " return l"
-	ncursor, err := a.db.Query(ctx, query, nil)
-	if err != nil {
-		return err
-	}
-	defer ncursor.Close()
-	var sn SRNode
-	ns, err := ncursor.ReadDocument(ctx, &sn)
-	if err != nil {
-		if !driver.IsNoMoreDocuments(err) {
-			return err
-		}
-	}
-
-	sid := SID{
-		SRv6SID:              e.SRv6SID,
-		SRv6EndpointBehavior: e.SRv6EndpointBehavior,
-		SRv6BGPPeerNodeSID:   e.SRv6BGPPeerNodeSID,
-		SRv6SIDStructure:     e.SRv6SIDStructure,
-	}
-
-	sn.SIDs = append(sn.SIDs, sid)
-
-	srn := SRNode{
-		//SID:     []*SID{&sid},
-		//SRv6SID: e.SRv6SID,
-		SIDs: sn.SIDs,
-	}
-
-	if _, err := a.srnode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
-		if !driver.IsConflict(err) {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e *message.LSPrefix) error {
 	if strings.Contains(e.Key, ":") {
 		// we're looking for v4 prefixes
@@ -95,6 +53,68 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e *mess
 	return nil
 }
 
+func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *message.LSSRv6SID) error {
+	//glog.Infof("processing SRv6SID %s", e.SRv6SID)
+	glog.V(5).Infof("query to correlate srv6 sid %s", e.Key)
+	query := "for l in " + a.srnode.Name() +
+		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\""
+	query += " return l"
+	ncursor, err := a.db.Query(ctx, query, nil)
+	if err != nil {
+		return err
+	}
+	defer ncursor.Close()
+	var sn SRNode
+	ns, err := ncursor.ReadDocument(ctx, &sn)
+	if err != nil {
+		if !driver.IsNoMoreDocuments(err) {
+			return err
+		}
+	}
+	sid := SID{
+		SRv6SID:              e.SRv6SID,
+		SRv6EndpointBehavior: e.SRv6EndpointBehavior,
+		SRv6BGPPeerNodeSID:   e.SRv6BGPPeerNodeSID,
+		SRv6SIDStructure:     e.SRv6SIDStructure,
+	}
+
+	//if len(sn.SIDs) < 4 {
+	if len(sn.SIDs) == 0 {
+		glog.Info("adding first sid, %s", sid)
+		sn.SIDs = append(sn.SIDs, sid)
+		// } else if len(sn.SIDs) >= 4 {
+		// 	glog.Info("got all the sids, no need to add this one, %s", e.SRv6SID)
+	} else if len(sn.SIDs) > 0 {
+
+		for _, x := range sn.SIDs {
+			glog.Info("if e.SRv6SID == x.SRv6SID: %v, %v ", e.SRv6SID, x.SRv6SID)
+			if e.SRv6SID == x.SRv6SID {
+				// SID already exists, so we return without appending
+				glog.Info("sid exists, skipping, %s", e.SRv6SID)
+			} else {
+				glog.Info("appending sid, %s", e.SRv6SID)
+				sn.SIDs = append(sn.SIDs, sid)
+			}
+		}
+	}
+
+	//sn.SIDs = append(sn.SIDs, sid)
+
+	srn := SRNode{
+		//SID:     []*SID{&sid},
+		//SRv6SID: e.SRv6SID,
+		SIDs: sn.SIDs,
+	}
+
+	if _, err := a.srnode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
+		if !driver.IsConflict(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (a *arangoDB) processSRNode(ctx context.Context, key string, e *message.LSNode) error {
 	if e.ProtocolID == base.BGP {
 		// EPE Case cannot be processed because LS Node collection does not have BGP routers
@@ -122,7 +142,7 @@ func (a *arangoDB) processSRNode(ctx context.Context, key string, e *message.LSN
 			return err
 		}
 		if err := a.findPrefixSID(ctx, sn.Key, e); err != nil {
-			glog.Infof("finding prefix SID for node: %s ", sn.Key)
+			//glog.Infof("finding prefix SID for node: %s ", sn.Key)
 			if err != nil {
 				return err
 			}
@@ -141,7 +161,7 @@ func (a *arangoDB) processSRNode(ctx context.Context, key string, e *message.LSN
 }
 
 func (a *arangoDB) findPrefixSID(ctx context.Context, key string, e *message.LSNode) error {
-	glog.Infof("finding prefix sid for node: %s ", e.Key)
+	//glog.Infof("finding prefix sid for node: %s ", e.Key)
 	query := "for l in " + a.lsprefix.Name() +
 		" filter l.igp_router_id == " + "\"" + e.IGPRouterID + "\"" +
 		" filter l.prefix_attr_tlvs.lsprefix_sid != null"

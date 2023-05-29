@@ -155,6 +155,7 @@ func (a *arangoDB) loadCollection() error {
 	defer cursor.Close()
 
 	// query ls_prefix collection and pass data to prefixSID processor
+	glog.Infof("processing ls prefix")
 	sr_query := "for p in  " + a.lsprefix.Name() + " return p "
 	cursor, err = a.db.Query(ctx, sr_query, nil)
 	if err != nil {
@@ -175,6 +176,7 @@ func (a *arangoDB) loadCollection() error {
 	}
 
 	// query ls_srv6_sid collection and pass data to SRv6 SID processor
+	glog.Infof("processing srv6")
 	srv6_query := "for s in  " + a.lssrv6sid.Name() + " return s "
 	cursor, err = a.db.Query(ctx, srv6_query, nil)
 	if err != nil {
