@@ -15,6 +15,11 @@ func (a *arangoDB) processPrefixSID(ctx context.Context, key, id string, e *mess
 		// we're looking for v4 prefixes
 		return nil
 	}
+	if e.PrefixAttrTLVs == nil {
+		// we're looking for SR prefix SIDs
+		glog.V(5).Infof("ls prefix does not come with ISIS extended prefix attributes: %s ", e.Key)
+		return nil
+	}
 	if e.PrefixAttrTLVs.LSPrefixSID == nil {
 		// we're looking for SR prefix SIDs
 		return nil
@@ -66,6 +71,7 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 	defer ncursor.Close()
 	var sn SRNode
 	ns, err := ncursor.ReadDocument(ctx, &sn)
+	//glog.Infof("read document %v, with sids %v", sn.Key, sn.SIDs)
 	if err != nil {
 		if !driver.IsNoMoreDocuments(err) {
 			return err
@@ -77,41 +83,42 @@ func (a *arangoDB) processLSSRv6SID(ctx context.Context, key, id string, e *mess
 		SRv6BGPPeerNodeSID:   e.SRv6BGPPeerNodeSID,
 		SRv6SIDStructure:     e.SRv6SIDStructure,
 	}
-
-	//if len(sn.SIDs) < 4 {
-	if len(sn.SIDs) == 0 {
-		glog.Info("adding first sid, %s", sid)
+	// so sorry, this is a placeholder hack until I figure out how to range over an existing array of SIDs looking for duplicates
+	if len(sn.SIDs) < 4 {
+		//if len(sn.SIDs) == 0 {
+		glog.Infof("adding sid, %v", sid)
 		sn.SIDs = append(sn.SIDs, sid)
-		// } else if len(sn.SIDs) >= 4 {
-		// 	glog.Info("got all the sids, no need to add this one, %s", e.SRv6SID)
-	} else if len(sn.SIDs) > 0 {
-
-		for _, x := range sn.SIDs {
-			glog.Info("if e.SRv6SID == x.SRv6SID: %v, %v ", e.SRv6SID, x.SRv6SID)
-			if e.SRv6SID == x.SRv6SID {
-				// SID already exists, so we return without appending
-				glog.Info("sid exists, skipping, %s", e.SRv6SID)
-			} else {
-				glog.Info("appending sid, %s", e.SRv6SID)
-				sn.SIDs = append(sn.SIDs, sid)
+		srn := SRNode{
+			SIDs: sn.SIDs,
+		}
+		if _, err := a.srnode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
+			if !driver.IsConflict(err) {
+				return err
 			}
 		}
+	} else {
+		glog.Infof("max sids reached: %v", sid)
 	}
+	// } else if len(sn.SIDs) > 0 {
 
-	//sn.SIDs = append(sn.SIDs, sid)
-
-	srn := SRNode{
-		//SID:     []*SID{&sid},
-		//SRv6SID: e.SRv6SID,
-		SIDs: sn.SIDs,
-	}
-
-	if _, err := a.srnode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
-		if !driver.IsConflict(err) {
-			return err
-		}
-	}
-
+	// 	for x := range sn.SIDs {
+	// 		if sn.SIDs[x].SRv6SID == e.SRv6SID {
+	// 			// found
+	// 			glog.Infof("sid exists, skipping, %v", sid)
+	// 		} else {
+	// 			sn.SIDs = append(sn.SIDs, sid)
+	// 			srn := SRNode{
+	// 				SIDs: sn.SIDs,
+	// 			}
+	// 			glog.Infof("appending sid: %v", sid)
+	// 			if _, err := a.srnode.UpdateDocument(ctx, ns.Key, &srn); err != nil {
+	// 				if !driver.IsConflict(err) {
+	// 					return err
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 	return nil
 }
 
